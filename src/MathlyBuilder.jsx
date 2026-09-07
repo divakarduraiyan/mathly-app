@@ -11,6 +11,7 @@ import {
   maxQuestions,
 } from "./generators";
 import { downloadWorksheetPdf } from "./pdf";
+import { trackViewWorksheet } from "./analytics";
 
 const DIFFICULTIES = [
   { id: "easy", label: "Easy" },
@@ -191,8 +192,10 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
   );
 
   useEffect(() => {
-    setSheet(buildSheet({ skillIds, difficulty, count: Math.min(count, cap), seed }));
-  }, [skillIds, difficulty, count, cap, seed]);
+    const next = buildSheet({ skillIds, difficulty, count: Math.min(count, cap), seed });
+    setSheet(next);
+    if (next.length) trackViewWorksheet({ grade, skillIds, difficulty });
+  }, [grade, skillIds, difficulty, count, cap, seed]);
 
   useEffect(() => {
     if (count > cap) setCount(cap);
@@ -237,11 +240,20 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
     if (!ready || downloading) return;
     setDownloading(true);
     try {
-      await downloadWorksheetPdf({ title: worksheetTitle, gradeText, sheet, showAnswers, workspace });
+      await downloadWorksheetPdf({
+        title: worksheetTitle,
+        gradeText,
+        sheet,
+        showAnswers,
+        workspace,
+        grade,
+        skillIds,
+        difficulty,
+      });
     } finally {
       setDownloading(false);
     }
-  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, workspace]);
+  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, workspace, grade, skillIds, difficulty]);
 
   return (
     <div className="mb">

@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import MathlyLanding from "./MathlyLanding.jsx";
 import MathlyBuilder from "./MathlyBuilder.jsx";
 import { skillById } from "./generators.js";
+import { trackLanding, trackOpenBuilder } from "./analytics.js";
 
 // The landing gallery renders its own illustrative sample problems and
 // doesn't share ids with generators.js, so map each card to the closest
@@ -19,18 +20,25 @@ export default function App() {
   const [view, setView] = useState("landing");
   const [builderProps, setBuilderProps] = useState({});
 
+  useEffect(() => {
+    if (view === "landing") trackLanding();
+  }, [view]);
+
   const openTemplate = useCallback((template) => {
     const skill = skillById(TEMPLATE_TO_SKILL[template.id]);
+    const grade = skill ? skill.grade : template.grade;
     setBuilderProps({
-      initialGrade: skill ? skill.grade : template.grade,
+      initialGrade: grade,
       initialSkillIds: skill ? [skill.id] : [],
     });
     setView("builder");
+    trackOpenBuilder(grade);
   }, []);
 
   const openBlank = useCallback(() => {
     setBuilderProps({});
     setView("builder");
+    trackOpenBuilder();
   }, []);
 
   const backToLanding = useCallback(() => setView("landing"), []);

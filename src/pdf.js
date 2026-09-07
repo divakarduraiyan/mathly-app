@@ -9,6 +9,7 @@
 
 import mathlyLogo from "./assets/mathly-logo.png";
 import { CATEGORIES } from "./generators.js";
+import { trackDownload } from "./analytics.js";
 
 const MARGIN = 36; // 0.5in, matches the print @page rule
 const PAGE_W = 612; // 8.5in
@@ -140,19 +141,6 @@ function isIos() {
   return /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
 }
 
-/* A worksheet PDF is built entirely in the browser and never touches the
-   network, so there's no request to count. This fires one afterwards, to
-   a path that isn't a real object — CloudFront logs the attempt (as a
-   403/404, which is fine, only the fact that it was asked for matters).
-   Best-effort: never let a blocked/failed beacon affect the download. */
-function trackDownload() {
-  try {
-    fetch("/e/pdf-download", { mode: "no-cors", keepalive: true }).catch(() => {});
-  } catch {
-    // ignore — this is a nice-to-have, not part of the download itself
-  }
-}
-
 const slugify = (str) =>
   String(str)
     .replace(/[^\p{L}\p{N}]+/gu, "-")
@@ -187,6 +175,8 @@ export async function downloadWorksheetPdf(opts) {
   const doc = await buildWorksheetPdf(opts);
   const blob = doc.output("blob");
   const filename = buildFilename(opts);
+  const { grade, skillIds, difficulty, showAnswers } = opts;
+  const trackParams = { grade, skillIds, difficulty, showAnswers };
 
   if (isIos()) {
     const file = new File([blob], filename, { type: "application/pdf" });
@@ -196,7 +186,7 @@ export async function downloadWorksheetPdf(opts) {
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file] });
-        trackDownload();
+        trackDownload(trackParams);
         return;
       } catch (err) {
         if (err?.name === "AbortError") return;
@@ -207,5 +197,5 @@ export async function downloadWorksheetPdf(opts) {
   }
 
   downloadBlob(blob, filename);
-  trackDownload();
+  trackDownload(trackParams);
 }
