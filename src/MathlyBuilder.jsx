@@ -36,6 +36,8 @@ const CSS = `
 .mb-back { display:flex; align-items:center; gap:7px; font-size:14px; color:var(--ink-soft); }
 .mb-back:hover { color:var(--blue); }
 .mb-logo { height:60px; width:auto; object-fit:contain; display:block; }
+.mb-feedback { font-size:14px; color:var(--ink-soft); white-space:nowrap; }
+.mb-feedback:hover { color:var(--blue); }
 
 .mb-letterhead { margin-bottom:20px; }
 .mb-letterhead-logo { height:68px; width:auto; object-fit:contain; display:block; }
@@ -268,7 +270,10 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
             </svg>
             Back
           </button>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center" }}>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "18px" }}>
+            <a className="mb-feedback" href="mailto:feedback@mathly.us?subject=Mathly%20feedback">
+              Feedback
+            </a>
             <img src={mathlyLogo} alt="Mathly" className="mb-logo" />
           </div>
         </header>

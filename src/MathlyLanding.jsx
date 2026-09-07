@@ -193,6 +193,8 @@ const CSS = `
 
 .ml-bar { display:flex; align-items:center; gap:10px; padding:20px 0; }
 .ml-logo { height:80px; width:auto; object-fit:contain; display:block; }
+.ml-feedback { margin-left:auto; font-size:13px; color:var(--ink-soft); white-space:nowrap; }
+.ml-feedback:hover { color:var(--blue); }
 
 .ml-banner { position:relative; border-bottom:1px solid var(--rule); }
 .ml-banner::before { content:''; position:absolute; inset:0; pointer-events:none;
@@ -346,6 +348,9 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
         <div className="ml-shell">
         <header className="ml-bar">
           <img src={mathlyLogo} alt="Mathly" className="ml-logo" />
+          <a className="ml-feedback" href="mailto:feedback@mathly.us?subject=Mathly%20feedback">
+            Feedback
+          </a>
         </header>
 
         <section className="ml-hero">
