@@ -19,6 +19,14 @@ const DIFFICULTIES = [
   { id: "hard", label: "Hard" },
 ];
 
+const WORKSPACE_SIZES = [
+  { id: "small", label: "Small" },
+  { id: "medium", label: "Medium" },
+  { id: "large", label: "Large" },
+];
+
+const WORKSPACE_HEIGHT = { small: 40, medium: 70, large: 110 };
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap');
 
@@ -41,6 +49,14 @@ const CSS = `
 
 .mb-letterhead { margin-bottom:20px; }
 .mb-letterhead-logo { height:68px; width:auto; object-fit:contain; display:block; }
+
+.mb-nameline { display:flex; gap:26px; flex-wrap:wrap; margin:16px 0 20px;
+               font-size:12.5px; color:var(--ink-soft); }
+.mb-nameline span { display:flex; align-items:baseline; gap:6px; }
+.mb-nameline b { flex:none; }
+.mb-nameline i { flex:none; width:130px; border-bottom:1px solid var(--rule); height:1px; }
+.mb-nameline span:nth-child(2) i,
+.mb-nameline span:nth-child(3) i { width:80px; }
 
 .mb-cols { display:grid; grid-template-columns:minmax(0,5fr) minmax(0,6fr); gap:44px;
            align-items:start; }
@@ -70,6 +86,8 @@ const CSS = `
 .mb-seg button:hover { border-color:var(--blue); }
 .mb-seg button[aria-pressed="true"] { background:#EAF1FE; border-color:var(--blue);
                                       color:var(--blue-deep); }
+.mb-seg button:disabled { opacity:.45; cursor:not-allowed; }
+.mb-seg button:disabled:hover { border-color:var(--rule); }
 
 .mb-count { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px; }
 .mb-count b { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:17px;
@@ -79,6 +97,7 @@ const CSS = `
 
 .mb-row { display:flex; align-items:center; justify-content:space-between;
           padding:13px 0; border-top:1px solid var(--rule); font-size:14.5px; }
+.mb-row:disabled { opacity:.45; cursor:not-allowed; }
 .mb-tog { width:42px; height:24px; border-radius:12px; background:#CBD5E1; position:relative;
           flex:none; transition:background .15s ease; }
 .mb-tog[aria-pressed="true"] { background:var(--blue); }
@@ -114,7 +133,7 @@ const CSS = `
 .mb-t.prose { font-family:'Inter',sans-serif; font-size:15px; }
 .mb-a { color:var(--mint); font-family:'Space Grotesk',sans-serif; font-size:17px;
         margin-left:10px; }
-.mb-space { height:34px; }
+.mb-space { display:block; }
 .mb-redo { flex:none; width:32px; height:32px; border-radius:6px; display:grid;
            place-items:center; color:#94A3B8; }
 .mb-redo:hover { color:var(--blue); background:#F1F5F9; }
@@ -180,10 +199,11 @@ function Refresh({ size = 14 }) {
 export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], onBack }) {
   const [grade, setGrade] = useState(initialGrade);
   const [skillIds, setSkillIds] = useState(initialSkillIds);
-  const [difficulty, setDifficulty] = useState("medium");
+  const [difficulties, setDifficulties] = useState(["medium"]);
   const [count, setCount] = useState(20);
   const [showAnswers, setShowAnswers] = useState(false);
   const [workspace, setWorkspace] = useState(false);
+  const [workspaceSize, setWorkspaceSize] = useState("small");
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
   const [sheet, setSheet] = useState([]);
 
@@ -194,10 +214,10 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
   );
 
   useEffect(() => {
-    const next = buildSheet({ skillIds, difficulty, count: Math.min(count, cap), seed });
+    const next = buildSheet({ skillIds, difficulty: difficulties, count: Math.min(count, cap), seed });
     setSheet(next);
-    if (next.length) trackViewWorksheet({ grade, skillIds, difficulty });
-  }, [grade, skillIds, difficulty, count, cap, seed]);
+    if (next.length) trackViewWorksheet({ grade, skillIds, difficulty: difficulties.join(".") });
+  }, [grade, skillIds, difficulties, count, cap, seed]);
 
   useEffect(() => {
     if (count > cap) setCount(cap);
@@ -207,6 +227,16 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
     setSkillIds((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
+  }, []);
+
+  const toggleDifficulty = useCallback((id) => {
+    setDifficulties((prev) => {
+      if (prev.includes(id)) {
+        // Always leave at least one difficulty selected.
+        return prev.length === 1 ? prev : prev.filter((d) => d !== id);
+      }
+      return DIFFICULTIES.filter((d) => prev.includes(d.id) || d.id === id).map((d) => d.id);
+    });
   }, []);
 
   const changeGrade = useCallback((g) => {
@@ -235,7 +265,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
 
   const ready = skillIds.length > 0 && sheet.length > 0;
   const shuffle = () => setSeed(Math.floor(Math.random() * 1e6));
-  const redo = (i) => setSheet((s) => regenerateOne(s, i, difficulty, Math.floor(Math.random() * 1e6)));
+  const redo = (i) => setSheet((s) => regenerateOne(s, i, Math.floor(Math.random() * 1e6)));
 
   const [downloading, setDownloading] = useState(false);
   const downloadPdf = useCallback(async () => {
@@ -247,15 +277,15 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
         gradeText,
         sheet,
         showAnswers,
-        workspace,
+        workspaceSize: workspace ? workspaceSize : "none",
         grade,
         skillIds,
-        difficulty,
+        difficulty: difficulties.join("."),
       });
     } finally {
       setDownloading(false);
     }
-  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, workspace, grade, skillIds, difficulty]);
+  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, workspace, workspaceSize, grade, skillIds, difficulties]);
 
   return (
     <div className="mb">
@@ -328,13 +358,15 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
             </div>
 
             <div className="mb-group">
-              <p className="mb-lab">Difficulty</p>
+              <p className="mb-lab">
+                Difficulty{difficulties.length > 1 ? " — mixed" : ""}
+              </p>
               <div className="mb-seg">
                 {DIFFICULTIES.map((d) => (
                   <button
                     key={d.id}
-                    aria-pressed={difficulty === d.id}
-                    onClick={() => setDifficulty(d.id)}
+                    aria-pressed={difficulties.includes(d.id)}
+                    onClick={() => toggleDifficulty(d.id)}
                   >
                     {d.label}
                   </button>
@@ -378,12 +410,31 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                 className="mb-row"
                 style={{ width: "100%" }}
                 aria-pressed={workspace}
+                disabled={showAnswers}
                 onClick={() => setWorkspace((v) => !v)}
               >
                 Add working space
                 <span className="mb-tog" aria-pressed={workspace}><span /></span>
               </button>
             </div>
+
+            {workspace && (
+              <div className="mb-group" style={{ marginTop: 16 }}>
+                <p className="mb-lab">Space size</p>
+                <div className="mb-seg">
+                  {WORKSPACE_SIZES.map((w) => (
+                    <button
+                      key={w.id}
+                      aria-pressed={workspaceSize === w.id}
+                      disabled={showAnswers}
+                      onClick={() => setWorkspaceSize(w.id)}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-pane">
@@ -409,6 +460,13 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                 <div className="mb-letterhead">
                   <img src={mathlyLogo} alt="Mathly" className="mb-letterhead-logo" />
                 </div>
+                {!showAnswers && (
+                  <div className="mb-nameline">
+                    <span><b>Name:</b><i /></span>
+                    <span><b>Date:</b><i /></span>
+                    <span><b>Period:</b><i /></span>
+                  </div>
+                )}
                 <div className="mb-sheet-top">
                   <span className="mb-sheet-title" title={worksheetTitle}>{worksheetTitle}</span>
                   <span>{gradeText}</span>
@@ -422,7 +480,12 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                       <span className={`mb-t${prose ? " prose" : ""}`}>
                         {q.prompt}
                         {showAnswers && <span className="mb-a">{q.answer}</span>}
-                        {workspace && !showAnswers && <span className="mb-space" style={{ display: "block" }} />}
+                        {workspace && !showAnswers && (
+                          <span
+                            className="mb-space"
+                            style={{ height: WORKSPACE_HEIGHT[workspaceSize] }}
+                          />
+                        )}
                       </span>
                       <button
                         className="mb-redo"

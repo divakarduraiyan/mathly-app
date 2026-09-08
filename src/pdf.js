@@ -22,6 +22,8 @@ const RULE = [211, 227, 242];
 const HAIRLINE = [241, 245, 249];
 const MINT = [16, 185, 129];
 
+const WORKSPACE_HEIGHT = { small: 40, medium: 70, large: 110 };
+
 const hexToRgb = (hex) => {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -63,7 +65,7 @@ function loadLogoData() {
   return logoDataPromise;
 }
 
-async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspace }) {
+async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspaceSize = "none" }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const logo = await loadLogoData();
@@ -72,6 +74,26 @@ async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspa
   const logoH = 42;
   doc.addImage(logo.dataUrl, "PNG", MARGIN, y, logoH * logo.aspect, logoH);
   y += logoH + 16;
+
+  if (!showAnswers) {
+    doc.setTextColor(...INK_SOFT);
+    doc.setFontSize(10);
+    doc.setDrawColor(...RULE);
+    const fields = [
+      { label: "Name:", lineWidth: 170 },
+      { label: "Date:", lineWidth: 80 },
+      { label: "Period:", lineWidth: 70 },
+    ];
+    let x = MARGIN;
+    for (const f of fields) {
+      doc.text(f.label, x, y);
+      const lineStart = x + doc.getTextWidth(f.label) + 6;
+      const lineEnd = lineStart + f.lineWidth;
+      doc.line(lineStart, y + 1, lineEnd, y + 1);
+      x = lineEnd + 20;
+    }
+    y += 24;
+  }
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
@@ -84,12 +106,13 @@ async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspa
   y += 22;
 
   const lineHeight = 16;
+  const workspaceHeight = WORKSPACE_HEIGHT[workspaceSize] ?? 0;
 
   sheet.forEach((q, i) => {
     const promptLines = doc.splitTextToSize(sanitizeForPdf(q.prompt), CONTENT_W - 34);
     let blockHeight = promptLines.length * lineHeight;
     if (showAnswers) blockHeight += lineHeight;
-    if (workspace && !showAnswers) blockHeight += 26;
+    if (workspaceHeight && !showAnswers) blockHeight += workspaceHeight;
     blockHeight += 16;
 
     if (y + blockHeight > PAGE_H - MARGIN) {
@@ -115,8 +138,8 @@ async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspa
       doc.setFontSize(12);
       doc.text(sanitizeForPdf(`Answer: ${q.answer}`), MARGIN + 34, y);
       y += lineHeight;
-    } else if (workspace) {
-      y += 26;
+    } else if (workspaceHeight) {
+      y += workspaceHeight;
     }
 
     y += 10;

@@ -1268,11 +1268,44 @@ export const SKILLS = [
     space: 400,
     gen(rng, d) {
       const hi = RANGE(6, 9, 12)[d];
-      const m = rng.int(-hi, hi) || 1;
       const b = rng.int(-hi, hi);
+
+      if (d === "hard") {
+        // A fractional slope forces the point (rather than the
+        // y-intercept) to actually be used — an integer slope lets a
+        // student dodge the fraction arithmetic entirely.
+        const den = rng.pick([2, 3, 4, 5]);
+        let num = rng.int(1, hi);
+        while (gcd(num, den) !== 1) num = rng.int(1, hi);
+        if (rng.next() < 0.5) num = -num;
+        const mLabel = `${num}/${den}`;
+        const k = rng.int(-4, 4) || 1;
+        const x1 = k * den;
+        const y1 = num * k + b;
+        return {
+          prompt: `Write the equation of a line with a slope of ${mLabel} that passes through the point (${x1}, ${y1}).`,
+          answer: `y = ${mLabel}x ${b >= 0 ? "+" : "−"} ${Math.abs(b)}`,
+        };
+      }
+
+      const m = rng.int(-hi, hi) || 1;
+      const answer = `y = ${m}x ${b >= 0 ? "+" : "−"} ${Math.abs(b)}`;
+
+      if (d === "medium") {
+        // Same integer slope, but a point instead of the y-intercept —
+        // b has to be solved for (b = y1 - m*x1), just without the
+        // fraction arithmetic "hard" adds on top.
+        const x1 = rng.int(-hi, hi) || 1;
+        const y1 = m * x1 + b;
+        return {
+          prompt: `Write the equation of a line with a slope of ${m} that passes through the point (${x1}, ${y1}).`,
+          answer,
+        };
+      }
+
       return {
         prompt: `Write the equation of a line with a slope of ${m} and a y-intercept of ${b}.`,
-        answer: `y = ${m}x ${b >= 0 ? "+" : "−"} ${Math.abs(b)}`,
+        answer,
       };
     },
   },
@@ -1291,8 +1324,8 @@ export const SKILLS = [
       const sum = x + y;
       const diff = x - y;
       return {
-        prompt: `If x + y = ${sum} and x − y = ${diff}, what is x?`,
-        answer: x,
+        prompt: `Solve for x and y: x + y = ${sum} and x − y = ${diff}.`,
+        answer: `x = ${x}, y = ${y}`,
       };
     },
   },
@@ -1723,6 +1756,7 @@ export function buildSheet({ skillIds, difficulty = "medium", count = 20, seed =
   const rng = makeRng(seed);
   const chosen = skillIds.map(skillById).filter(Boolean);
   if (!chosen.length) return [];
+  const difficulties = Array.isArray(difficulty) && difficulty.length ? difficulty : [difficulty];
 
   const seen = new Set();
   const out = [];
@@ -1730,26 +1764,30 @@ export function buildSheet({ skillIds, difficulty = "medium", count = 20, seed =
 
   while (out.length < count && attempts < count * 30) {
     const skill = chosen[out.length % chosen.length];
-    const q = skill.gen(rng, difficulty);
+    const d = difficulties[out.length % difficulties.length];
+    const q = skill.gen(rng, d);
     attempts += 1;
     if (seen.has(q.prompt)) continue;
     seen.add(q.prompt);
-    out.push({ ...q, cat: skill.cat, skillId: skill.id });
+    out.push({ ...q, cat: skill.cat, skillId: skill.id, difficulty: d });
   }
   return out;
 }
 
-/* Replace a single question in place, leaving the rest untouched. */
-export function regenerateOne(sheet, index, difficulty, seed) {
-  const skill = skillById(sheet[index].skillId);
+/* Replace a single question in place, leaving the rest untouched. Keeps
+   the question's own assigned difficulty, so redoing one question in a
+   mixed-difficulty sheet can't silently change how hard it is. */
+export function regenerateOne(sheet, index, seed) {
+  const target = sheet[index];
+  const skill = skillById(target.skillId);
   if (!skill) return sheet;
   const rng = makeRng(seed);
   const existing = new Set(sheet.map((q, i) => (i === index ? null : q.prompt)));
   for (let i = 0; i < 40; i += 1) {
-    const q = skill.gen(rng, difficulty);
+    const q = skill.gen(rng, target.difficulty);
     if (existing.has(q.prompt)) continue;
     const next = sheet.slice();
-    next[index] = { ...q, cat: skill.cat, skillId: skill.id };
+    next[index] = { ...q, cat: skill.cat, skillId: skill.id, difficulty: target.difficulty };
     return next;
   }
   return sheet;

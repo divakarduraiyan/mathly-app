@@ -1,130 +1,35 @@
 import { useState, useCallback, useMemo } from "react";
 import mathlyLogo from "./assets/mathly-logo.png";
+import { CATEGORIES, skillById, makeRng } from "./generators.js";
 
 /* ---------------------------------------------------------------
-   Seeded RNG — mulberry32.
-   Same seed always yields the same worksheet, so a sheet is
-   reproducible and shareable via URL.
-----------------------------------------------------------------*/
-function makeRng(seed) {
-  let s = seed >>> 0;
-  const next = () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return { next, int: (lo, hi) => lo + Math.floor(next() * (hi - lo + 1)) };
-}
-
-const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
-
-/* ---------------------------------------------------------------
-   Generators. Every answer is computed alongside the question,
-   never re-derived, so an answer key cannot drift from its sheet.
-----------------------------------------------------------------*/
-const GENERATORS = {
-  multiplyTwoDigit: (rng) => {
-    const a = rng.int(12, 99);
-    const b = rng.int(3, 9);
-    return { prompt: `${a} \u00d7 ${b} =`, answer: a * b, cat: "number" };
-  },
-
-  addLikeFractions: (rng) => {
-    const den = [4, 5, 6, 8, 10][rng.int(0, 4)];
-    const n1 = rng.int(1, den - 2);
-    const n2 = rng.int(1, den - n1 - 1);
-    const g = gcd(n1 + n2, den);
-    return {
-      prompt: `${n1}/${den} + ${n2}/${den} =`,
-      answer: `${(n1 + n2) / g}/${den / g}`,
-      cat: "fraction",
-    };
-  },
-
-  longDivision: (rng) => {
-    const divisor = rng.int(3, 12);
-    const quotient = rng.int(11, 99);
-    return {
-      prompt: `${divisor * quotient} \u00f7 ${divisor} =`,
-      answer: quotient,
-      cat: "number",
-    };
-  },
-
-  wordProblem: (rng) => {
-    const per = rng.int(6, 24);
-    const groups = rng.int(3, 9);
-    const frames = [
-      [`A box holds ${per} pencils. How many pencils are in ${groups} boxes?`],
-      [`Each shelf fits ${per} books. How many books fit on ${groups} shelves?`],
-      [`A van carries ${per} students. How many students ride in ${groups} vans?`],
-      [`One tray has ${per} muffins. How many muffins are on ${groups} trays?`],
-    ];
-    return {
-      prompt: frames[rng.int(0, frames.length - 1)][0],
-      answer: per * groups,
-      cat: "word",
-    };
-  },
-
-  areaRectangle: (rng) => {
-    const w = rng.int(4, 18);
-    const h = rng.int(3, 15);
-    return {
-      prompt: `A rectangle is ${w} cm by ${h} cm. What is its area?`,
-      answer: `${w * h} cm\u00b2`,
-      cat: "geometry",
-    };
-  },
-
-  roundNearest: (rng) => {
-    const n = rng.int(112, 9877);
-    return {
-      prompt: `Round ${n} to the nearest hundred.`,
-      answer: Math.round(n / 100) * 100,
-      cat: "number",
-    };
-  },
-};
-
-const CATEGORY = {
-  number: { label: "Number and operations", tone: "#2563EB" },
-  fraction: { label: "Fractions", tone: "#7C3AED" },
-  geometry: { label: "Measurement and geometry", tone: "#0D9488" },
-  word: { label: "Word problems", tone: "#EA580C" },
-};
-
-/* ---------------------------------------------------------------
-   Template catalogue. Each entry is config, not bespoke code.
+   Template catalogue \u2014 real skills from generators.js, so this
+   gallery can never drift out of sync with what the builder
+   actually supports. (That drift is exactly how this page ended
+   up looking like it stopped at grade 5 while the builder already
+   went to grade 10.) Kept small and curated \u2014 one or two per grade
+   band \u2014 rather than one card per grade, so the gallery stays a
+   sampler instead of a wall of cards; the full grade-by-grade
+   picker lives in the builder.
 ----------------------------------------------------------------*/
 const TEMPLATES = [
   {
-    id: "times-tables",
-    title: "Times tables",
-    detail: "Two-digit by one-digit multiplication",
-    grade: 4,
-    count: 20,
-    gen: "multiplyTwoDigit",
+    id: "add-within-5",
+    title: "Adding within 5",
+    detail: "Sums up to 5 \u2014 the very first worksheets",
+    grade: 0,
+    count: 12,
+    skillId: "add-within-5",
     cat: "number",
   },
   {
-    id: "fractions-like",
-    title: "Adding fractions",
-    detail: "Same denominator, answers reduced",
-    grade: 4,
-    count: 20,
-    gen: "addLikeFractions",
-    cat: "fraction",
-  },
-  {
-    id: "long-division",
-    title: "Long division",
-    detail: "No remainders, divisors to 12",
-    grade: 5,
+    id: "money-coins",
+    title: "Counting money",
+    detail: "Coins and simple totals",
+    grade: 2,
     count: 15,
-    gen: "longDivision",
-    cat: "number",
+    skillId: "money-coins",
+    cat: "word",
   },
   {
     id: "word-multiply",
@@ -132,47 +37,83 @@ const TEMPLATES = [
     detail: "One-step word problems",
     grade: 3,
     count: 12,
-    gen: "wordProblem",
+    skillId: "word-onestep",
     cat: "word",
   },
   {
-    id: "rectangle-area",
-    title: "Area of rectangles",
-    detail: "Whole-number sides in centimetres",
-    grade: 4,
-    count: 16,
-    gen: "areaRectangle",
+    id: "fractions-unlike",
+    title: "Adding fractions",
+    detail: "Unlike denominators, answers reduced",
+    grade: 5,
+    count: 15,
+    skillId: "frac-add-unlike",
+    cat: "fraction",
+  },
+  {
+    id: "one-step-equation-6",
+    title: "One-step equations",
+    detail: "A first taste of solving for x",
+    grade: 6,
+    count: 20,
+    skillId: "one-step-equation-6",
+    cat: "algebra",
+  },
+  {
+    id: "pythagorean-theorem",
+    title: "Pythagorean theorem",
+    detail: "Find the missing side of a right triangle",
+    grade: 8,
+    count: 15,
+    skillId: "pythagorean-theorem",
     cat: "geometry",
   },
   {
-    id: "rounding",
-    title: "Rounding",
-    detail: "To the nearest ten and hundred",
-    grade: 3,
-    count: 20,
-    gen: "roundNearest",
-    cat: "number",
+    id: "system-of-equations",
+    title: "Systems of equations",
+    detail: "Solve for both x and y",
+    grade: 9,
+    count: 15,
+    skillId: "system-of-equations",
+    cat: "algebra",
+  },
+  {
+    id: "circle-area-symbolic",
+    title: "Area of circles",
+    detail: "Symbolic radius, exact answer",
+    grade: 10,
+    count: 15,
+    skillId: "circle-area-symbolic",
+    cat: "geometry",
   },
 ];
 
-const GRADES = [3, 4, 5];
+/* Grade *bands* instead of one filter pill per grade \u2014 12 individual
+   pills read as a wall of buttons. Four bands still make the K-10
+   range visible without the clutter. */
+const GRADE_BANDS = [
+  { id: "k2", label: "K\u20132", grades: [0, 1, 2] },
+  { id: "35", label: "3\u20135", grades: [3, 4, 5] },
+  { id: "68", label: "6\u20138", grades: [6, 7, 8] },
+  { id: "910", label: "9\u201310", grades: [9, 10] },
+];
 
 /* ---------------------------------------------------------------
-   Build a sheet. Deduplicates on prompt text with a retry cap so a
-   small answer space cannot spin forever.
+   Build a sheet from real skills. Deduplicates on prompt text with
+   a retry cap so a small answer space cannot spin forever.
 ----------------------------------------------------------------*/
-function buildSheet(genKeys, count, seed) {
+function buildSheet(skillIds, count, seed) {
   const rng = makeRng(seed);
-  const gen = genKeys.map((k) => GENERATORS[k]);
+  const skills = skillIds.map(skillById).filter(Boolean);
   const seen = new Set();
   const out = [];
   let attempts = 0;
   while (out.length < count && attempts < count * 25) {
-    const q = gen[out.length % gen.length](rng);
+    const skill = skills[out.length % skills.length];
+    const q = skill.gen(rng, "medium");
     attempts += 1;
     if (seen.has(q.prompt)) continue;
     seen.add(q.prompt);
-    out.push(q);
+    out.push({ ...q, cat: skill.cat });
   }
   return out;
 }
@@ -251,7 +192,7 @@ const CSS = `
               margin-bottom:22px; }
 .ml-gal-h { font-family:'Space Grotesk',sans-serif; font-weight:500; font-size:23px;
             letter-spacing:-.02em; margin:0; }
-.ml-filters { display:flex; gap:7px; margin-left:auto; }
+.ml-filters { display:flex; gap:7px; margin-left:auto; flex-wrap:wrap; justify-content:flex-end; }
 .ml-filter { border:1px solid var(--rule); background:var(--paper); border-radius:18px;
              padding:7px 16px; font-size:14px; color:var(--ink-soft); }
 .ml-filter:hover { border-color:var(--blue); }
@@ -324,12 +265,14 @@ function ShuffleIcon() {
 
 export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
-  const [grade, setGrade] = useState(null);
+  const [bandId, setBandId] = useState(null);
 
   const heroSheet = useMemo(
     () =>
+      // Grade 6 — the entry point to algebra and the newer skills, a more
+      // meaningful showcase than another round of grade-4 arithmetic.
       buildSheet(
-        ["multiplyTwoDigit", "addLikeFractions", "wordProblem", "longDivision", "areaRectangle"],
+        ["gcf-lcm", "divide-fractions", "unit-rate", "area-triangle", "one-step-equation-6"],
         5,
         seed
       ),
@@ -338,7 +281,8 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
 
   const shuffle = useCallback(() => setSeed(Math.floor(Math.random() * 1e6)), []);
 
-  const shown = grade ? TEMPLATES.filter((t) => t.grade === grade) : TEMPLATES;
+  const band = GRADE_BANDS.find((b) => b.id === bandId);
+  const shown = band ? TEMPLATES.filter((t) => band.grades.includes(t.grade)) : TEMPLATES;
 
   return (
     <div className="ml">
@@ -378,11 +322,11 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
             </button>
             <div className="ml-sheet-top">
               <span>Mixed practice</span>
-              <span>Grade 4</span>
+              <span>Grade 6</span>
             </div>
             {heroSheet.map((q, i) => (
               <div className="ml-q" key={`${seed}-${i}`}>
-                <span className="ml-dot" style={{ background: CATEGORY[q.cat].tone }} />
+                <span className="ml-dot" style={{ background: CATEGORIES[q.cat].tone }} />
                 <span className="ml-q-n">{i + 1}.</span>
                 <span className={`ml-q-t${q.cat === "word" || q.cat === "geometry" ? " prose" : ""}`}>
                   {q.prompt}
@@ -402,19 +346,19 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
             <div className="ml-filters">
               <button
                 className="ml-filter"
-                aria-pressed={grade === null}
-                onClick={() => setGrade(null)}
+                aria-pressed={bandId === null}
+                onClick={() => setBandId(null)}
               >
                 All
               </button>
-              {GRADES.map((g) => (
+              {GRADE_BANDS.map((b) => (
                 <button
-                  key={g}
+                  key={b.id}
                   className="ml-filter"
-                  aria-pressed={grade === g}
-                  onClick={() => setGrade(g)}
+                  aria-pressed={bandId === b.id}
+                  onClick={() => setBandId(b.id)}
                 >
-                  Grade {g}
+                  {b.label}
                 </button>
               ))}
             </div>
@@ -422,7 +366,7 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
 
           <div className="ml-grid">
             {shown.map((t) => {
-              const sample = buildSheet([t.gen], 1, seed + t.id.length)[0];
+              const sample = buildSheet([t.skillId], 1, seed + t.id.length)[0];
               const prose = t.cat === "word" || t.cat === "geometry";
               return (
                 <button
@@ -432,7 +376,7 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
                 >
                   <div
                     className="ml-card-rule"
-                    style={{ background: CATEGORY[t.cat].tone }}
+                    style={{ background: CATEGORIES[t.cat].tone }}
                     aria-hidden="true"
                   />
                   <div className="ml-card-in">
@@ -441,7 +385,7 @@ export default function MathlyLanding({ onOpenTemplate, onBuildCustom }) {
                     <div className={`ml-peek${prose ? " prose" : ""}`}>{sample.prompt}</div>
                     <div className="ml-card-f">
                       <span>
-                        Grade {t.grade}, {t.count} questions
+                        {t.grade === 0 ? "K" : `Grade ${t.grade}`}, {t.count} questions
                       </span>
                       <span className="ml-get">Open</span>
                     </div>

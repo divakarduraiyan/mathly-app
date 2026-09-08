@@ -78,12 +78,94 @@ describe("generators", () => {
 
   it("regenerateOne replaces only the targeted question", () => {
     const sheet = buildSheet({ skillIds: ["mult-2x1"], difficulty: "medium", count: 5, seed: 1 });
-    const next = regenerateOne(sheet, 2, "medium", 99);
+    const next = regenerateOne(sheet, 2, 99);
     expect(next[0]).toEqual(sheet[0]);
     expect(next[2].prompt).not.toBe(sheet[2].prompt);
   });
 
+  it("regenerateOne keeps the question's own difficulty in a mixed sheet", () => {
+    const sheet = buildSheet({
+      skillIds: ["mult-2x1"],
+      difficulty: ["easy", "hard"],
+      count: 6,
+      seed: 1,
+    });
+    const next = regenerateOne(sheet, 3, 99);
+    expect(next[3].difficulty).toBe(sheet[3].difficulty);
+  });
+
   it("maxQuestions caps a small answer space below 40", () => {
     expect(maxQuestions(["make-ten"])).toBeLessThan(40);
+  });
+
+  it("buildSheet distributes multiple difficulties across a sheet", () => {
+    const sheet = buildSheet({
+      skillIds: ["mult-2x1"],
+      difficulty: ["easy", "hard"],
+      count: 6,
+      seed: 7,
+    });
+    const seen = new Set(sheet.map((q) => q.difficulty));
+    expect(seen.has("easy")).toBe(true);
+    expect(seen.has("hard")).toBe(true);
+  });
+
+  describe("system-of-equations: both variables check out", () => {
+    const skill = SKILLS.find((s) => s.id === "system-of-equations");
+    for (const d of DIFFICULTIES) {
+      it(`x + y and x − y both match the prompt — ${d}`, () => {
+        for (let seed = 0; seed < SEEDS; seed++) {
+          const q = skill.gen(makeRng(seed), d);
+          const pm = q.prompt.match(/x \+ y = (-?\d+) and x − y = (-?\d+)/);
+          expect(pm, q.prompt).toBeTruthy();
+          const [, sum, diff] = pm.map(Number);
+
+          const am = String(q.answer).match(/^x = (-?\d+), y = (-?\d+)$/);
+          expect(am, String(q.answer)).toBeTruthy();
+          const [, x, y] = am.map(Number);
+
+          expect(x + y).toBe(sum);
+          expect(x - y).toBe(diff);
+        }
+      });
+    }
+  });
+
+  describe("slope-intercept-equation: equation matches the given slope + point/intercept", () => {
+    const skill = SKILLS.find((s) => s.id === "slope-intercept-equation");
+    for (const d of DIFFICULTIES) {
+      it(`answer satisfies the prompt — ${d}`, () => {
+        for (let seed = 0; seed < SEEDS; seed++) {
+          const q = skill.gen(makeRng(seed), d);
+
+          // Slope can now be a plain integer ("7") or a reduced fraction
+          // ("2/3") — the fraction form is what forces the point (rather
+          // than the y-intercept) to actually be used.
+          const am = String(q.answer).match(/^y = (-?\d+(?:\/\d+)?)x ([+−]) (\d+)$/);
+          expect(am, String(q.answer)).toBeTruthy();
+          const mLabel = am[1];
+          const b = (am[2] === "+" ? 1 : -1) * Number(am[3]);
+
+          const slopeMatch = q.prompt.match(/slope of (-?\d+(?:\/\d+)?)/);
+          expect(slopeMatch, q.prompt).toBeTruthy();
+          expect(slopeMatch[1]).toBe(mLabel);
+
+          const [mNumStr, mDenStr] = mLabel.split("/");
+          const mNum = Number(mNumStr);
+          const mDen = mDenStr ? Number(mDenStr) : 1;
+
+          const ptMatch = q.prompt.match(/passes through the point \((-?\d+), (-?\d+)\)/);
+          if (ptMatch) {
+            const [, x1, y1] = ptMatch.map(Number);
+            // y1 = (mNum/mDen)*x1 + b, kept in integers via cross-multiplication.
+            expect(y1 * mDen).toBe(mNum * x1 + b * mDen);
+          } else {
+            const interceptMatch = q.prompt.match(/y-intercept of (-?\d+)/);
+            expect(interceptMatch, q.prompt).toBeTruthy();
+            expect(Number(interceptMatch[1])).toBe(b);
+          }
+        }
+      });
+    }
   });
 });
