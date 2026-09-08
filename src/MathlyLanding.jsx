@@ -7,10 +7,9 @@ import { CATEGORIES, skillById, makeRng } from "./generators.js";
    gallery can never drift out of sync with what the builder
    actually supports. (That drift is exactly how this page ended
    up looking like it stopped at grade 5 while the builder already
-   went to grade 10.) Kept small and curated \u2014 one or two per grade
-   band \u2014 rather than one card per grade, so the gallery stays a
-   sampler instead of a wall of cards; the full grade-by-grade
-   picker lives in the builder.
+   went to grade 10.) One card per grade, K through 10 \u2014 the grade
+   *bands* below keep the filter row from becoming a wall of
+   buttons, but the gallery itself shows every grade.
 ----------------------------------------------------------------*/
 const TEMPLATES = [
   {
@@ -21,6 +20,15 @@ const TEMPLATES = [
     count: 12,
     skillId: "add-within-5",
     cat: "number",
+  },
+  {
+    id: "partition-halves-fourths",
+    title: "Halves and fourths",
+    detail: "Splitting a shape into equal parts",
+    grade: 1,
+    count: 12,
+    skillId: "partition-halves-fourths",
+    cat: "fraction",
   },
   {
     id: "money-coins",
@@ -41,6 +49,15 @@ const TEMPLATES = [
     cat: "word",
   },
   {
+    id: "times-tables",
+    title: "Times tables",
+    detail: "Two-digit by one-digit multiplication",
+    grade: 4,
+    count: 20,
+    skillId: "mult-2x1",
+    cat: "number",
+  },
+  {
     id: "fractions-unlike",
     title: "Adding fractions",
     detail: "Unlike denominators, answers reduced",
@@ -56,6 +73,15 @@ const TEMPLATES = [
     grade: 6,
     count: 20,
     skillId: "one-step-equation-6",
+    cat: "algebra",
+  },
+  {
+    id: "two-step-equation",
+    title: "Two-step equations",
+    detail: "Two operations to undo",
+    grade: 7,
+    count: 20,
+    skillId: "two-step-equation",
     cat: "algebra",
   },
   {
@@ -213,8 +239,12 @@ const CSS = `
            font-variant-numeric:tabular-nums; color:var(--ink); }
 .ml-peek.prose { font-family:'Inter',sans-serif; font-size:13.5px; line-height:1.45; }
 .ml-card-f { display:flex; align-items:center; justify-content:space-between;
-             margin-top:auto; font-size:13px; color:var(--ink-soft); }
-.ml-get { color:var(--blue); font-weight:500; }
+             margin-top:auto; font-size:13px; color:var(--ink-soft); gap:10px; }
+/* Safari leaves flex children at min-width:auto by default, so long text
+   here refuses to shrink and can push "Open" out of alignment — Chrome is
+   more forgiving about this same CSS. min-width:0 lets it wrap instead. */
+.ml-card-f > span:first-child { min-width:0; }
+.ml-get { color:var(--blue); font-weight:500; flex:none; }
 
 @media (max-width:900px) {
   .ml-hero { grid-template-columns:1fr; gap:36px; padding:32px 0 48px; }
