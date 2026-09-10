@@ -65,11 +65,7 @@ function loadLogoData() {
   return logoDataPromise;
 }
 
-async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspaceSize = "none" }) {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "letter" });
-  const logo = await loadLogoData();
-
+function drawHeader(doc, logo, { title, gradeText, showAnswers }) {
   let y = MARGIN;
   const logoH = 42;
   doc.addImage(logo.dataUrl, "PNG", MARGIN, y, logoH * logo.aspect, logoH);
@@ -103,10 +99,17 @@ async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspa
   y += 8;
   doc.setDrawColor(...RULE);
   doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-  y += 22;
+  return y + 22;
+}
+
+async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspaceSize = "none" }) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  const logo = await loadLogoData();
 
   const lineHeight = 16;
   const workspaceHeight = WORKSPACE_HEIGHT[workspaceSize] ?? 0;
+  let y = drawHeader(doc, logo, { title, gradeText, showAnswers });
 
   sheet.forEach((q, i) => {
     const promptLines = doc.splitTextToSize(sanitizeForPdf(q.prompt), CONTENT_W - 34);

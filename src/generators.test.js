@@ -7,6 +7,7 @@ import {
   regenerateOne,
   maxQuestions,
   skillsForGrade,
+  reorderSheet,
 } from "./generators.js";
 
 const DIFFICULTIES = ["easy", "medium", "hard"];
@@ -96,6 +97,35 @@ describe("generators", () => {
 
   it("maxQuestions caps a small answer space below 40", () => {
     expect(maxQuestions(["make-ten"])).toBeLessThan(40);
+  });
+
+  describe("reorderSheet", () => {
+    const sheet = buildSheet({ skillIds: ["mult-2x1", "frac-add-like"], difficulty: "medium", count: 12, seed: 3 });
+    const byPrompt = (s) => s.map((q) => q.prompt);
+
+    it("keeps the same questions, each with its own answer", () => {
+      const out = reorderSheet(sheet, 9);
+      expect([...byPrompt(out)].sort()).toEqual([...byPrompt(sheet)].sort());
+      for (const q of out) {
+        expect(q.answer).toBe(sheet.find((o) => o.prompt === q.prompt).answer);
+      }
+    });
+
+    it("changes the order and always opens with a different question", () => {
+      for (let seed = 0; seed < 100; seed += 1) {
+        const small = buildSheet({ skillIds: ["mult-2x1"], difficulty: "medium", count: 5, seed });
+        const out = reorderSheet(small, seed + 1);
+        expect(byPrompt(out), `seed ${seed}`).not.toEqual(byPrompt(small));
+        expect(out[0].prompt, `seed ${seed}`).not.toBe(small[0].prompt);
+      }
+    });
+
+    it("does not mutate the input and is deterministic for a seed", () => {
+      const before = byPrompt(sheet);
+      const a = reorderSheet(sheet, 5);
+      expect(byPrompt(sheet)).toEqual(before);
+      expect(byPrompt(reorderSheet(sheet, 5))).toEqual(byPrompt(a));
+    });
   });
 
   it("buildSheet distributes multiple difficulties across a sheet", () => {

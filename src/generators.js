@@ -1793,6 +1793,24 @@ export function regenerateOne(sheet, index, seed) {
   return sheet;
 }
 
+/* Same questions, new order — for handing neighbouring students different
+   copies of one worksheet. Each answer travels with its question object,
+   so the key stays right by construction. Always opens with a different
+   question than before, so the change is visible at a glance. */
+export function reorderSheet(sheet, seed) {
+  const rng = makeRng(seed);
+  const order = sheet.slice();
+  for (let i = order.length - 1; i > 0; i -= 1) {
+    const j = rng.int(0, i);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  if (order.length > 1 && order[0] === sheet[0]) {
+    const k = rng.int(1, order.length - 1);
+    [order[0], order[k]] = [order[k], order[0]];
+  }
+  return order;
+}
+
 /* Largest question count a skill selection can fill without repeats.
    Prevents offering 30 questions from a 36-problem skill. */
 export function maxQuestions(skillIds) {

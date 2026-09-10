@@ -9,6 +9,7 @@ import {
   buildSheet,
   regenerateOne,
   maxQuestions,
+  reorderSheet,
 } from "./generators";
 import { downloadWorksheetPdf } from "./pdf";
 import { trackViewWorksheet } from "./analytics";
@@ -107,9 +108,10 @@ const CSS = `
 
 .mb-pane { position:sticky; top:20px; }
 .mb-pane-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:11px; }
-.mb-tabs { display:flex; gap:6px; }
+.mb-tabs { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .mb-tab { border-radius:16px; padding:6px 14px; font-size:13px; color:var(--ink-soft); }
 .mb-tab[aria-pressed="true"] { background:#EAF1FE; color:var(--blue-deep); }
+.mb-pane-acts { display:flex; align-items:center; gap:16px; }
 .mb-shuffle { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--blue); }
 .mb-shuffle svg { transition:transform .35s ease; }
 .mb-shuffle:hover svg { transform:rotate(140deg); }
@@ -196,6 +198,15 @@ function Refresh({ size = 14 }) {
   );
 }
 
+function Reorder({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+    </svg>
+  );
+}
+
 export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], onBack }) {
   const [grade, setGrade] = useState(initialGrade);
   const [skillIds, setSkillIds] = useState(initialSkillIds);
@@ -265,6 +276,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
 
   const ready = skillIds.length > 0 && sheet.length > 0;
   const shuffle = () => setSeed(Math.floor(Math.random() * 1e6));
+  const reorder = () => setSheet((s) => reorderSheet(s, Math.floor(Math.random() * 1e6)));
   const redo = (i) => setSheet((s) => regenerateOne(s, i, Math.floor(Math.random() * 1e6)));
 
   const [downloading, setDownloading] = useState(false);
@@ -448,10 +460,24 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                 </button>
               </div>
               {ready && (
-                <button className="mb-shuffle" onClick={shuffle}>
-                  <Refresh />
-                  Shuffle all
-                </button>
+                <span className="mb-pane-acts">
+                  <button
+                    className="mb-shuffle"
+                    onClick={reorder}
+                    title="Same questions in a new order — print one copy, reorder, print the next"
+                  >
+                    <Reorder />
+                    Reorder
+                  </button>
+                  <button
+                    className="mb-shuffle"
+                    onClick={shuffle}
+                    title="Replace every question with a new one"
+                  >
+                    <Refresh />
+                    Regenerate
+                  </button>
+                </span>
               )}
             </div>
 
@@ -474,7 +500,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                 {sheet.map((q, i) => {
                   const prose = q.cat === "word" || q.cat === "geometry";
                   return (
-                    <div className="mb-q" key={`${seed}-${i}-${q.prompt}`}>
+                    <div className="mb-q" key={`${seed}-${q.prompt}`}>
                       <span className="mb-dot" style={{ background: CATEGORIES[q.cat].tone }} />
                       <span className="mb-n">{i + 1}.</span>
                       <span className={`mb-t${prose ? " prose" : ""}`}>
