@@ -37,6 +37,28 @@ function rederiveArithmetic(prompt) {
   }
 }
 
+// Every "a OP b = c" written inside a worked step must actually be true.
+// A step is prose, so this is deliberately narrow: two integer operands,
+// one operator, one result. The lookbehind keeps a chain like
+// "2 × 22 × 4 = 176" (where "22 × 4 = 176" would be false) and a
+// fraction like "3/4 + 1/4" from being misread as a two-term equation.
+const EQUATION =
+  /(?<![\d.,/)\-]|[+−×÷]\s)(\d+(?:,\d{3})*)\s([+−×÷])\s(\d+(?:,\d{3})*)\s=\s(-?\d+(?:,\d{3})*(?:\.\d+)?)(?![\d./])/g;
+
+function equationsIn(step) {
+  const num = (t) => Number(t.replace(/,/g, ""));
+  return [...step.matchAll(EQUATION)].map(([, a, op, b, c]) => ({
+    text: `${a} ${op} ${b} = ${c}`,
+    a: num(a),
+    op,
+    b: num(b),
+    c: num(c),
+  }));
+}
+
+const apply = (a, op, b) =>
+  ({ "+": a + b, "−": a - b, "×": a * b, "÷": a / b })[op];
+
 describe("generators", () => {
   for (const skill of SKILLS) {
     it(`${skill.id}: valid answers across seeds and difficulty`, () => {
@@ -45,6 +67,7 @@ describe("generators", () => {
           const q = skill.gen(makeRng(seed), d);
 
           expect(q.prompt, `${skill.id}/${d}/${seed}`).toBeTruthy();
+          expect(q.prompt, `${skill.id}/${d}/${seed}`).not.toMatch(/NaN|\.\d{5,}|\de-\d/);
           expect(q.answer, `${skill.id}/${d}/${seed}`).not.toBeUndefined();
 
           const answerStr = String(q.answer);
@@ -93,6 +116,84 @@ describe("generators", () => {
     });
     const next = regenerateOne(sheet, 3, 99);
     expect(next[3].difficulty).toBe(sheet[3].difficulty);
+  });
+
+  describe("worked steps", () => {
+    const withSteps = SKILLS.filter((s) => s.gen(makeRng(1), "medium").steps);
+
+    it("every skill has steps except the two with nothing to work out", () => {
+      // A riddle's clue is its own reasoning; a translation has no arithmetic.
+      const without = SKILLS.filter((s) => !withSteps.includes(s)).map((s) => s.id).sort();
+      expect(without).toEqual(["shape-recognition", "write-numeric-expression"]);
+    });
+
+    let equationsChecked = 0;
+    for (const skill of withSteps) {
+      it(`${skill.id}: steps are sound and end on the printed answer`, () => {
+        for (const d of DIFFICULTIES) {
+          for (let seed = 0; seed < SEEDS; seed++) {
+            const q = skill.gen(makeRng(seed), d);
+            const label = `${skill.id}/${d}/${seed}`;
+            expect(Array.isArray(q.steps), label).toBe(true);
+            expect(q.steps.length, label).toBeGreaterThan(0);
+            expect(q.steps.length, label).toBeLessThanOrEqual(6);
+
+            for (const step of q.steps) {
+              expect(typeof step, label).toBe("string");
+              expect(step.trim().length, label).toBeGreaterThan(0);
+              expect(step, label).not.toMatch(/NaN|undefined|null|\[object|\.\d{5,}|\de-\d/);
+              for (const eq of equationsIn(step)) {
+                equationsChecked += 1;
+                expect(apply(eq.a, eq.op, eq.b), `${label}: "${eq.text}" in "${step}"`).toBeCloseTo(eq.c, 5);
+              }
+            }
+
+            const last = q.steps[q.steps.length - 1];
+            expect(last.endsWith(String(q.answer)), `${label}: "${last}" should end with "${q.answer}"`).toBe(true);
+
+            // Deterministic: the same seed writes the same steps.
+            expect(skill.gen(makeRng(seed), d).steps).toEqual(q.steps);
+          }
+        }
+      });
+    }
+
+    // Rounding and fraction→decimal legitimately have no "a op b = c"
+    // lines, but across the rest the matcher must be finding thousands —
+    // otherwise a regex slip has silently turned the check off.
+    it("the equation matcher actually matched", () => {
+      expect(equationsChecked).toBeGreaterThan(10000);
+    });
+
+    it("steps travel with the question through buildSheet, regenerateOne and reorderSheet", () => {
+      const sheet = buildSheet({ skillIds: ["long-division", "frac-add-unlike"], difficulty: "medium", count: 6, seed: 5 });
+      expect(sheet.every((q) => q.steps?.length > 0)).toBe(true);
+      const next = regenerateOne(sheet, 1, 77);
+      expect(next[1].steps.length).toBeGreaterThan(0);
+      expect(next[1].steps[next[1].steps.length - 1].endsWith(String(next[1].answer))).toBe(true);
+      const reordered = reorderSheet(sheet, 9);
+      for (const q of reordered) expect(sheet.find((o) => o.prompt === q.prompt).steps).toEqual(q.steps);
+    });
+
+    it("skills without steps leave the field off entirely", () => {
+      const q = SKILLS.find((s) => s.id === "shape-recognition").gen(makeRng(1), "easy");
+      expect("steps" in q).toBe(false);
+    });
+  });
+
+  describe("percent-of-number: base is whole and the answer is percent × base ÷ 100", () => {
+    const skill = SKILLS.find((s) => s.id === "percent-of-number");
+    for (const d of DIFFICULTIES) {
+      it(`re-derived from the prompt — ${d}`, () => {
+        for (let seed = 0; seed < SEEDS; seed++) {
+          const q = skill.gen(makeRng(seed), d);
+          const m = q.prompt.match(/^What is (\d+)% of (\d+)\?$/);
+          expect(m, q.prompt).toBeTruthy();
+          const [, percent, base] = m.map(Number);
+          expect((percent * base) / 100).toBe(q.answer);
+        }
+      });
+    }
   });
 
   it("maxQuestions caps a small answer space below 40", () => {

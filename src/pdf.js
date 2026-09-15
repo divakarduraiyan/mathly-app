@@ -102,21 +102,32 @@ function drawHeader(doc, logo, { title, gradeText, showAnswers }) {
   return y + 22;
 }
 
-async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspaceSize = "none" }) {
+async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, showSteps = false, workspaceSize = "none" }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const logo = await loadLogoData();
 
   const lineHeight = 16;
+  const stepLineHeight = 13;
+  const stepIndent = 46;
   const workspaceHeight = WORKSPACE_HEIGHT[workspaceSize] ?? 0;
   let y = drawHeader(doc, logo, { title, gradeText, showAnswers });
 
   sheet.forEach((q, i) => {
     const promptLines = doc.splitTextToSize(sanitizeForPdf(q.prompt), CONTENT_W - 34);
+    // Steps are wrapped up front so the block height is known before
+    // deciding whether the whole question fits on the current page.
+    const stepLines = showAnswers && showSteps
+      ? (q.steps ?? []).map((step, j) =>
+          doc.splitTextToSize(sanitizeForPdf(`Step ${j + 1}: ${step}`), CONTENT_W - stepIndent)
+        )
+      : [];
+    const stepLineCount = stepLines.reduce((n, lines) => n + lines.length, 0);
     let blockHeight = promptLines.length * lineHeight;
     if (showAnswers) blockHeight += lineHeight;
+    if (stepLineCount) blockHeight += stepLineCount * stepLineHeight + 4;
     if (workspaceHeight && !showAnswers) blockHeight += workspaceHeight;
-    blockHeight += 16;
+    blockHeight += 20;
 
     if (y + blockHeight > PAGE_H - MARGIN) {
       doc.addPage();
@@ -141,14 +152,23 @@ async function buildWorksheetPdf({ title, gradeText, sheet, showAnswers, workspa
       doc.setFontSize(12);
       doc.text(sanitizeForPdf(`Answer: ${q.answer}`), MARGIN + 34, y);
       y += lineHeight;
+      if (stepLineCount) {
+        doc.setTextColor(...INK_SOFT);
+        doc.setFontSize(10);
+        for (const lines of stepLines) {
+          doc.text(lines, MARGIN + stepIndent, y);
+          y += lines.length * stepLineHeight;
+        }
+        y += 4;
+      }
     } else if (workspaceHeight) {
       y += workspaceHeight;
     }
 
-    y += 10;
+    y += 6;
     doc.setDrawColor(...HAIRLINE);
     doc.line(MARGIN, y, PAGE_W - MARGIN, y);
-    y += 6;
+    y += 14; // the next prompt's cap height is ~9pt above its baseline — keep the rule clear of it
   });
 
   return doc;
@@ -173,10 +193,10 @@ const slugify = (str) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 
-function buildFilename({ title, gradeText, showAnswers }) {
+function buildFilename({ title, gradeText, showAnswers, showSteps }) {
   const gradePart = slugify(gradeText.replace(/\s*—\s*answer key$/i, ""));
   const titlePart = slugify(title);
-  const suffix = showAnswers ? "-Answer-Key" : "";
+  const suffix = showAnswers ? (showSteps ? "-Answer-Key-Steps" : "-Answer-Key") : "";
   return `Mathly-Worksheet-${titlePart}-${gradePart}${suffix}.pdf`;
 }
 
@@ -201,8 +221,8 @@ export async function downloadWorksheetPdf(opts) {
   const doc = await buildWorksheetPdf(opts);
   const blob = doc.output("blob");
   const filename = buildFilename(opts);
-  const { grade, skillIds, difficulty, showAnswers } = opts;
-  const trackParams = { grade, skillIds, difficulty, showAnswers };
+  const { grade, skillIds, difficulty, showAnswers, showSteps } = opts;
+  const trackParams = { grade, skillIds, difficulty, showAnswers, showSteps };
 
   if (isIos()) {
     const file = new File([blob], filename, { type: "application/pdf" });

@@ -17,6 +17,10 @@ Live at **[mathly.us](https://mathly.us)**.
   separately, no symbolic algebra involved.
 - **PDF export, client-side.** Download a worksheet or its answer key as a
   real PDF (via jsPDF) — no server round-trip, works offline once loaded.
+- **Worked steps on the answer key.** "Show steps" adds a short, numbered
+  walk-through under each answer, written by the same
+  generator that wrote the question — so a parent can see where a wrong
+  answer went wrong. Off by default so a teacher's key stays compact.
 
 ## Quick start
 

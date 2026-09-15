@@ -32,6 +32,7 @@ export function trackViewWorksheet({ grade, skillIds, difficulty }) {
   track(["view", grade, skillIds.join("."), difficulty]);
 }
 
-export function trackDownload({ grade, skillIds, difficulty, showAnswers }) {
-  track(["download", grade, skillIds.join("."), difficulty, showAnswers ? "answer-key" : "worksheet"]);
+export function trackDownload({ grade, skillIds, difficulty, showAnswers, showSteps }) {
+  const variant = !showAnswers ? "worksheet" : showSteps ? "answer-key-steps" : "answer-key";
+  track(["download", grade, skillIds.join("."), difficulty, variant]);
 }

@@ -136,6 +136,11 @@ const CSS = `
 .mb-a { color:var(--mint); font-family:'Space Grotesk',sans-serif; font-size:17px;
         margin-left:10px; }
 .mb-space { display:block; }
+.mb-steps { margin:6px 0 2px; padding:0; list-style:none; counter-reset:step;
+            font-family:'Inter',sans-serif; font-size:13.5px; line-height:1.45;
+            color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+.mb-steps li { padding:1px 0; counter-increment:step; }
+.mb-steps li::before { content:"Step " counter(step) ": "; font-weight:500; }
 .mb-redo { flex:none; width:32px; height:32px; border-radius:6px; display:grid;
            place-items:center; color:#94A3B8; }
 .mb-redo:hover { color:var(--blue); background:#F1F5F9; }
@@ -213,6 +218,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
   const [difficulties, setDifficulties] = useState(["medium"]);
   const [count, setCount] = useState(20);
   const [showAnswers, setShowAnswers] = useState(false);
+  const [showSteps, setShowSteps] = useState(false);
   const [workspace, setWorkspace] = useState(false);
   const [workspaceSize, setWorkspaceSize] = useState("small");
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
@@ -289,6 +295,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
         gradeText,
         sheet,
         showAnswers,
+        showSteps: showAnswers && showSteps,
         workspaceSize: workspace ? workspaceSize : "none",
         grade,
         skillIds,
@@ -297,7 +304,7 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
     } finally {
       setDownloading(false);
     }
-  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, workspace, workspaceSize, grade, skillIds, difficulties]);
+  }, [ready, downloading, worksheetTitle, gradeText, sheet, showAnswers, showSteps, workspace, workspaceSize, grade, skillIds, difficulties]);
 
   return (
     <div className="mb">
@@ -421,6 +428,17 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
               <button
                 className="mb-row"
                 style={{ width: "100%" }}
+                aria-pressed={showSteps}
+                disabled={!showAnswers}
+                onClick={() => setShowSteps((v) => !v)}
+                title="Worked steps under each answer, for checking where a wrong answer went wrong"
+              >
+                Show steps
+                <span className="mb-tog" aria-pressed={showSteps}><span /></span>
+              </button>
+              <button
+                className="mb-row"
+                style={{ width: "100%" }}
                 aria-pressed={workspace}
                 disabled={showAnswers}
                 onClick={() => setWorkspace((v) => !v)}
@@ -506,6 +524,11 @@ export default function MathlyBuilder({ initialGrade = 4, initialSkillIds = [], 
                       <span className={`mb-t${prose ? " prose" : ""}`}>
                         {q.prompt}
                         {showAnswers && <span className="mb-a">{q.answer}</span>}
+                        {showAnswers && showSteps && q.steps?.length > 0 && (
+                          <ol className="mb-steps">
+                            {q.steps.map((step, j) => <li key={j}>{step}</li>)}
+                          </ol>
+                        )}
                         {workspace && !showAnswers && (
                           <span
                             className="mb-space"
