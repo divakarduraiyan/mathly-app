@@ -31,7 +31,7 @@ const hexToRgb = (hex) => {
 
 /* jsPDF's standard fonts only support the WinAnsi (Windows-1252) charset.
    Most of the Unicode symbols generators.js uses (¢ ° ² ³ × ÷ —) are in
-   that charset and render fine, but − (U+2212 minus sign), π, ≈ and √ are
+   that charset and render fine, but − (U+2212 minus sign), π, ≈, √, ≥ and ≤ are
    not — jsPDF silently falls back to a broken glyph for them. Swap in
    ASCII-safe equivalents for the PDF only; on-screen HTML keeps the real
    symbols. */
@@ -40,7 +40,10 @@ function sanitizeForPdf(str) {
     .replace(/−/g, "-")
     .replace(/π/g, "pi")
     .replace(/≈/g, "~")
-    .replace(/√(\d+)/g, "sqrt($1)");
+    .replace(/√(\d+)/g, "sqrt($1)")
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
+    .replace(/→/g, "->");
 }
 
 let logoDataPromise = null;

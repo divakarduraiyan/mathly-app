@@ -7,7 +7,7 @@ Live at **[mathly.us](https://mathly.us)**.
 
 ## What it does
 
-- **87 skills, grades K–10, CCSS-coded** — number & operations, fractions &
+- **226 skills, grades K–10, CCSS-coded** — number & operations, fractions &
   decimals, geometry & measurement, word problems, and algebra (grades 6–10).
 - **Every worksheet is generated fresh.** Problems come from a seeded RNG, so
   a given seed always reproduces the same sheet, but two sheets for the same
@@ -44,7 +44,9 @@ mathly-app/
   src/
     main.jsx            React entry point.
     App.jsx             Routes between landing and builder.
-    generators.js       87 skills, grades K-10, CCSS-coded. The actual product.
+    generators.js       Engine: RNG, buildSheet, and SKILLS assembled from skills/.
+    skills/             One file per grade (grade-k.js … grade-10.js) plus
+                        helpers.js — 226 skills, CCSS-coded. The actual product.
     MathlyLanding.jsx   Gallery landing. Hero is a live shuffling worksheet.
     MathlyBuilder.jsx   Single-page configurator with live preview.
     pdf.js              Client-side PDF generation (jsPDF) + share/download.

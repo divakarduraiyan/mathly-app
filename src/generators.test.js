@@ -43,7 +43,7 @@ function rederiveArithmetic(prompt) {
 // "2 × 22 × 4 = 176" (where "22 × 4 = 176" would be false) and a
 // fraction like "3/4 + 1/4" from being misread as a two-term equation.
 const EQUATION =
-  /(?<![\d.,/)\-]|[+−×÷]\s)(\d+(?:,\d{3})*)\s([+−×÷])\s(\d+(?:,\d{3})*)\s=\s(-?\d+(?:,\d{3})*(?:\.\d+)?)(?![\d./])/g;
+  /(?<![\d.,/)\-−^]|[+−×÷]\s)(\d+(?:,\d{3})*)\s([+−×÷])\s(\d+(?:,\d{3})*)\s=\s(-?\d+(?:,\d{3})*(?:\.\d+)?)(?![\d./])/g;
 
 function equationsIn(step) {
   const num = (t) => Number(t.replace(/,/g, ""));
@@ -58,6 +58,46 @@ function equationsIn(step) {
 
 const apply = (a, op, b) =>
   ({ "+": a + b, "−": a - b, "×": a * b, "÷": a / b })[op];
+
+// Rationals for the fraction re-derivation: "-3/4", "1 1/2", "5" → [num, den].
+const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
+function parseRational(text) {
+  const t = String(text).trim().replace(/,/g, "").replace(/^\((.*)\)$/, "$1");
+  const m = t.match(/^(-?)(?:(\d+) )?(\d+)(?:\/(\d+))?$/);
+  if (!m) return null;
+  const sign = m[1] === "-" ? -1 : 1;
+  const whole = Number(m[2] ?? 0);
+  const num = Number(m[3]);
+  const den = Number(m[4] ?? 1);
+  const n = sign * (whole * den + num);
+  const g = gcd(n, den) || 1;
+  return [n / g, den / g];
+}
+
+// "a/b op c/d =" (either side may be a whole number or a bracketed negative)
+// re-derived with exact integer arithmetic, compared to the printed answer.
+function rederiveFraction(prompt) {
+  if (!prompt.includes("/")) return null; // whole-number prompts are rederiveArithmetic's job
+  const m = prompt.match(/^(\(?-?(?:\d+ )?\d+(?:\/\d+)?\)?)\s([+−×÷])\s(\(?-?(?:\d+ )?\d+(?:\/\d+)?\)?)\s=$/);
+  if (!m) return null;
+  const a = parseRational(m[1]);
+  const b = parseRational(m[3]);
+  if (!a || !b) return null;
+  const [an, ad] = a;
+  const [bn, bd] = b;
+  let n;
+  let d;
+  switch (m[2]) {
+    case "+": n = an * bd + bn * ad; d = ad * bd; break;
+    case "−": n = an * bd - bn * ad; d = ad * bd; break;
+    case "×": n = an * bn; d = ad * bd; break;
+    case "÷": n = an * bd; d = ad * bn; break;
+    default: return null;
+  }
+  if (d < 0) { n = -n; d = -d; }
+  const g = gcd(n, d) || 1;
+  return [n / g, d / g];
+}
 
 describe("generators", () => {
   for (const skill of SKILLS) {
@@ -82,10 +122,43 @@ describe("generators", () => {
           if (derived !== null && typeof q.answer === "number") {
             expect(q.answer).toBeCloseTo(derived, 5);
           }
+
+          const frac = rederiveFraction(q.prompt);
+          if (frac !== null) {
+            const printed = parseRational(q.answer);
+            expect(printed, `${skill.id}/${d}/${seed}: unparseable answer "${q.answer}" for "${q.prompt}"`).not.toBeNull();
+            expect(printed, `${skill.id}/${d}/${seed}: "${q.prompt}" → "${q.answer}"`).toEqual(frac);
+          }
         }
       }
     });
   }
+
+  it("every skill has a unique id and valid metadata", () => {
+    const ids = SKILLS.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const s of SKILLS) {
+      expect(s.id, s.id).toMatch(/^[a-z0-9-]+$/);
+      expect(GRADES, s.id).toContain(s.grade);
+      expect(["number", "fraction", "geometry", "word", "algebra"], s.id).toContain(s.cat);
+      expect(s.space, s.id).toBeGreaterThan(0);
+      expect(s.name, s.id).toBeTruthy();
+      expect(s.ccss, s.id).toBeTruthy();
+    }
+  });
+
+  it("every grade builds a full sheet from all of its skills", () => {
+    for (const g of GRADES) {
+      const ids = skillsForGrade(g).map((s) => s.id);
+      const sheet = buildSheet({ skillIds: ids, difficulty: ["easy", "medium", "hard"], count: 20, seed: 7 });
+      expect(sheet.length, `grade ${g}`).toBe(20);
+    }
+  });
+
+  it("the fraction re-derivation actually covers the fraction skills", () => {
+    const covered = SKILLS.filter((s) => rederiveFraction(s.gen(makeRng(3), "medium").prompt) !== null).map((s) => s.id);
+    expect(covered).toEqual(expect.arrayContaining(["frac-add-like", "frac-add-unlike", "frac-sub-unlike", "frac-mult", "divide-fractions", "rational-add-sub", "rational-mult-div", "frac-times-whole", "mixed-add-sub", "unit-frac-div-whole"]));
+  });
 
   it("skillsForGrade only returns that grade's skills", () => {
     for (const g of GRADES) {
